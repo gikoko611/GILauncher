@@ -1,0 +1,49 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Pillow
+        run: pip install pillow
+
+      - name: Install Android SDK
+        run: |
+          set -euo pipefail
+          SDK="$RUNNER_TEMP/android-sdk"
+          mkdir -p "$SDK/cmdline-tools"
+          curl -fsSL -o /tmp/cmdtools.zip \
+            https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+          unzip -q /tmp/cmdtools.zip -d "$SDK/cmdline-tools"
+          mv "$SDK/cmdline-tools/cmdline-tools" "$SDK/cmdline-tools/latest"
+          SM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          set +o pipefail
+          yes | "$SM" --sdk_root="$SDK" --licenses >/dev/null || true
+          set -o pipefail
+          "$SM" --sdk_root="$SDK" "platforms;android-29" "build-tools;34.0.0"
+          echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
+
+      - name: Build GILauncher
+        run: bash build.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GILauncher-redmi9a-armeabi-v7a
+          path: dist/GILauncher.apk
+          if-no-files-found: error
